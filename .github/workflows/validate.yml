@@ -1,0 +1,72 @@
+name: Validate Skills
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check README exists
+        run: test -f README.md
+
+      - name: Validate skill structure
+        run: |
+          errors=0
+          for skill_dir in skills/*/; do
+            skill_name=$(basename "$skill_dir")
+            skill_file="$skill_dir/SKILL.md"
+
+            if [ ! -f "$skill_file" ]; then
+              echo "ERROR: $skill_dir missing SKILL.md"
+              errors=$((errors + 1))
+              continue
+            fi
+
+            # Extract YAML frontmatter and validate required fields
+            frontmatter=$(sed -n '/^---$/,/^---$/p' "$skill_file" | sed '1d;$d')
+
+            if [ -z "$frontmatter" ]; then
+              echo "ERROR: $skill_file has no YAML frontmatter"
+              errors=$((errors + 1))
+              continue
+            fi
+
+            if ! echo "$frontmatter" | grep -q "^name:"; then
+              echo "ERROR: $skill_file missing 'name' in frontmatter"
+              errors=$((errors + 1))
+            fi
+
+            if ! echo "$frontmatter" | grep -q "^description:"; then
+              echo "ERROR: $skill_file missing 'description' in frontmatter"
+              errors=$((errors + 1))
+            fi
+
+            echo "OK: $skill_name"
+          done
+
+          if [ $errors -gt 0 ]; then
+            echo "Validation failed with $errors error(s)"
+            exit 1
+          fi
+
+      - name: Validate example manifests
+        run: |
+          # Install yq for YAML validation
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+          for manifest in examples/*.yaml examples/*.yml; do
+            [ -f "$manifest" ] || continue
+            if yq eval '.' "$manifest" > /dev/null 2>&1; then
+              echo "OK: $manifest"
+            else
+              echo "ERROR: $manifest is not valid YAML"
+              exit 1
+            fi
+          done

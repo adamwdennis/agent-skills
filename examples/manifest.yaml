@@ -1,0 +1,76 @@
+# Dataflow Manifest
+# Defines cross-service flows for /trace-dataflows and /audit-dataflows skills.
+# Place at: .claude/dataflows/manifest.yaml (relative to your project root)
+
+# Codebase root to trace against.
+# Absolute path or relative to this file's directory.
+# Use ~ for home directory (e.g., ~/projects/my-app).
+repo_root: .
+
+# Architecture docs for agent context (paths relative to repo_root).
+# These are read before tracing so agents understand service boundaries,
+# DB ownership, and communication patterns.
+architecture_docs: []
+  # - docs/architecture.md
+  # - .claude/docs/system-overview.md
+
+# OpenAPI specs for route metadata (paths relative to repo_root).
+# Agents use these to identify route paths, methods, and descriptions.
+openapi_specs: []
+  # - build/openapi.json
+  # - api/swagger.json
+
+# File patterns for route definitions (used by /audit-dataflows).
+# The audit skill scans these to find unmapped routes.
+route_patterns:
+  - glob: "**/routes.py"
+    type: python
+  - glob: "**/*Controller.ts"
+    type: typescript
+  # - glob: "**/*Router.ts"
+  #   type: typescript
+  # - glob: "**/views.py"
+  #   type: python
+
+# String patterns indicating cross-service calls (used by /audit-dataflows).
+# Routes containing these patterns are flagged as cross-service if unmapped.
+cross_service_indicators:
+  - "httpService."
+  - "axios."
+  - "fetch("
+  # - "private_web_client."
+  # - "grpc_client."
+
+# Domains group related flows for tracing.
+# Each domain generates one output markdown file.
+domains:
+  example-domain:
+    description: Short description of what this domain covers
+
+    # Flows are the individual entry points to trace.
+    flows:
+      - name: example_flow
+        # Path to the file containing the entry point (relative to repo_root)
+        entry: src/api/routes.py
+        # Function/method name in the entry file
+        method: handle_request
+        # Set automatically by /trace-dataflows after successful trace
+        last_traced: null
+
+      - name: another_flow
+        entry: src/api/routes.py
+        method: process_webhook
+        last_traced: null
+
+    # External integrations can't be auto-discovered.
+    # They're included in generated diagrams as-is.
+    external_integrations:
+      - source: External webhook provider
+        target: example_flow
+        mechanism: HTTP POST callback
+        owner: Ops team
+
+      # - source: Auth0 login
+      #   target: user_auth_flow
+      #   mechanism: JWT strategy
+      #   owner: Auth module
